@@ -1,0 +1,8 @@
+{
+    "ios": {
+        "modules": ["MyModule"]
+    },
+    "android": {
+        "modules": ["my.module.package.MyModule"]
+    }
+}
