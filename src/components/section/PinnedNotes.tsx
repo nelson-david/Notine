@@ -1,49 +1,26 @@
-import { StyleSheet, Text, View } from "react-native";
-import { whiteColor } from "../../styles/const";
+import Animated from "react-native-reanimated";
+import SectionHeader from "../ui/SectionHeader";
+import Grid from "../ui/Grid";
 import PreviewNoteCard from "../card/PreviewNoteCard";
+import { enterSection, layoutSpring } from "../../styles/motion";
 
-const PinnedNotes = ({ pinnedNotes }: { pinnedNotes: any }) => {
+const PinnedNotes = ({ pinnedNotes }: { pinnedNotes: any[] }) => {
+    if (pinnedNotes.length === 0) return null;
+
     return (
-        <>
-            {pinnedNotes.length !== 0 ? (
-                <View style={styles.pinnedNotes}>
-                    <Text style={styles.titleText}>Pinned</Text>
-                    <View style={styles.previewNotesContainer}>
-                        {pinnedNotes.map((note: any, index: number) => {
-                            return <PreviewNoteCard note={note} key={index} />;
-                        })}
-                    </View>
-                </View>
-            ) : (
-                <View style={styles.pinnedNotes}></View>
-            )}
-        </>
+        <Animated.View
+            entering={enterSection(40)}
+            layout={layoutSpring}
+            className="pt-6"
+        >
+            <SectionHeader title="Pinned" count={pinnedNotes.length} />
+            <Grid
+                data={pinnedNotes}
+                keyExtractor={(note) => note.noteID}
+                renderItem={(note) => <PreviewNoteCard note={note} />}
+            />
+        </Animated.View>
     );
 };
-
-const styles = StyleSheet.create({
-    pinnedNotes: {
-        paddingTop: 20,
-        paddingBottom: 20,
-        paddingLeft: 5,
-        paddingRight: 5,
-        width: "100%",
-    },
-    titleText: {
-        color: whiteColor,
-        fontSize: 22,
-        fontFamily: "NothingFont",
-        paddingTop: 10,
-        paddingBottom: 10,
-    },
-    previewNotesContainer: {
-        paddingTop: 15,
-        paddingBottom: 15,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-        gap: 25,
-    },
-} as any);
 
 export default PinnedNotes;

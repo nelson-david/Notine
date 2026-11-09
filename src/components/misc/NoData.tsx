@@ -1,52 +1,40 @@
-import { StyleSheet, Text, View } from "react-native";
-import { whiteColor } from "../../styles/const";
-import { heightPercentageToDP as hp } from "react-native-responsive-screen";
+import { ReactNode } from "react";
+import { Text, View } from "react-native";
+import Animated from "react-native-reanimated";
+import { enterSection } from "../../styles/motion";
 
+/** Centered empty state with an optional icon. */
 const NoData = ({
     customHeaderText,
     customCaptionText,
+    icon,
+    compact = false,
 }: {
     customHeaderText?: string;
     customCaptionText?: string;
-}) => {
-    return (
-        <View style={styles.noDataView}>
-            <View>
-                <Text style={styles.noDataView.text1}>
-                    {customHeaderText ? customHeaderText : "No Notes"}
-                </Text>
-                <Text style={styles.noDataView.text2}>
-                    {customCaptionText
-                        ? customCaptionText
-                        : "Tap the Add button to create a new note"}
-                </Text>
+    icon?: ReactNode;
+    compact?: boolean;
+}) => (
+    <Animated.View
+        entering={enterSection(60)}
+        className={`w-full items-center justify-center px-6 ${
+            compact
+                ? "rounded-3xl border border-dashed border-line py-10"
+                : "py-28"
+        }`}
+    >
+        {icon ? (
+            <View className="mb-4 h-14 w-14 items-center justify-center rounded-full border border-line bg-surface">
+                {icon}
             </View>
-        </View>
-    );
-};
-
-const styles = StyleSheet.create({
-    noDataView: {
-        width: "100%",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        height: hp(55),
-        text1: {
-            color: whiteColor,
-            textAlign: "center",
-            fontSize: 18,
-            fontFamily: "NothingFont",
-        },
-        text2: {
-            color: "rgba(255,255,255,0.75)",
-            textAlign: "center",
-            fontSize: 13,
-            fontFamily: "SCPFont",
-            letterSpacing: -0.5,
-            padding: 5,
-        },
-    },
-} as any);
+        ) : null}
+        <Text className="text-center text-[17px] font-semibold text-ink">
+            {customHeaderText ?? "No notes"}
+        </Text>
+        <Text className="mt-1.5 max-w-[280px] text-center text-[14px] leading-5 text-ink-muted">
+            {customCaptionText ?? "Tap the add button to create a new note"}
+        </Text>
+    </Animated.View>
+);
 
 export default NoData;

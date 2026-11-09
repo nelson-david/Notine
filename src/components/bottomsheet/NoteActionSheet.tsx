@@ -1,130 +1,109 @@
-import RBSheet from "react-native-raw-bottom-sheet";
-import { accentColor, globalSheetStyle, whiteColor } from "../../styles/const";
-import {
-    heightPercentageToDP as hp,
-    widthPercentageToDP as wp,
-} from "react-native-responsive-screen";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { updateNote } from "../../helpers/dbFunctions";
+import { View } from "react-native";
 import { useAtom } from "jotai";
-import { notesAtom } from "../../utils/jotaiAtom";
+import { useNavigation } from "@react-navigation/native";
+import AppSheet from "../ui/AppSheet";
+import ActionRow from "../ui/ActionRow";
 import TrashIcon from "../../assets/icons/TrashIcon";
 import EditIcon from "../../assets/icons/EditIcon";
 import LockIcon from "../../assets/icons/LockIcon";
-import { toastNotification } from "../../utils/toast";
-import { useNavigation } from "@react-navigation/native";
-import { Nav } from "../../utils/types";
 import PinIcon from "../../assets/icons/PinIcon";
+import {
+    moveNoteToRecycleBin,
+    updateNote,
+} from "../../helpers/dbFunctions";
+import { notesAtom } from "../../utils/jotaiAtom";
+import { toastNotification } from "../../utils/toast";
+import { Nav } from "../../utils/types";
+import { useTheme } from "../../theme/useTheme";
+
+const iconSize = { width: "20", height: "20" };
 
 const NoteActionSheet = ({
     actionSheetRef,
     note,
+    inEditor = false,
+    onAfterDelete,
 }: {
     actionSheetRef: any;
     note: any;
+    /** Hides "Open note" when shown from inside the editor. */
+    inEditor?: boolean;
+    onAfterDelete?: () => void;
 }) => {
     const { navigate } = useNavigation<Nav>();
-    const [_, setNotes] = useAtom(notesAtom);
+    const { colors } = useTheme();
+    const [, setNotes] = useAtom(notesAtom);
+    const close = () => actionSheetRef.current?.close();
 
-    const pinNote = () => {
-        updateNote(
-            {
-                noteID: note.noteID,
-                folderID: note.folderID,
-                title: note.title,
-                content: note.content,
-                favourite: false,
-                recycleBin: false,
-                pinned: true,
-                tag: "new content",
-            },
-            setNotes,
-            () => {}
-        );
+    const togglePin = () => {
+        updateNote({ noteID: note.noteID, pinned: !note.pinned }, setNotes, close);
     };
 
     const deleteNote = () => {
-        updateNote(
-            {
-                noteID: note.noteID,
-                folderID: note.folderID,
-                title: note.title,
-                content: note.content,
-                favourite: false,
-                recycleBin: true,
-                pinned: true,
-                tag: "new content",
-            },
+        moveNoteToRecycleBin(
+            note.noteID,
             setNotes,
-            () => {}
+            () => {
+                close();
+                onAfterDelete?.();
+                toastNotification(
+                    "success",
+                    "Moved to Recycle bin",
+                    "You can restore it from the Recycle bin"
+                );
+            },
+            () =>
+                toastNotification(
+                    "error",
+                    "Something went wrong",
+                    "The note could not be moved to the Recycle bin"
+                )
         );
     };
 
     return (
-        <RBSheet
-            ref={actionSheetRef}
-            customStyles={styles.modalStyle}
-            customModalProps={{
-                animationType: "slide",
-                statusBarTranslucent: true,
-            }}
-            useNativeDriver
-            openDuration={150}
-            closeDuration={150}
-            height={hp(21)}
-            draggable
-        >
-            <Text style={{ ...styles.title, fontSize: 16 }}>Note Action</Text>
-            <View style={styles.contentDiv}>
-                <View style={styles.contentDiv.actionContents}>
-                    <Pressable onPress={deleteNote}>
-                        <TrashIcon size={{ width: "20", height: "20" }} />
-                    </Pressable>
-                    <Pressable
+        <AppSheet ref={actionSheetRef} title={note.title || "Untitled"}>
+            <View className="gap-2">
+                {!inEditor ? (
+                    <ActionRow
+                        icon={<EditIcon size={iconSize} color={colors.ink} />}
+                        label="Open note"
                         onPress={() => {
+                            close();
                             navigate("SingleNote", { id: note.noteID });
-                            actionSheetRef.current.close();
                         }}
-                    >
-                        <EditIcon size={{ width: "20", height: "20" }} />
-                    </Pressable>
-                    <Pressable onPress={pinNote}>
+                    />
+                ) : null}
+                <ActionRow
+                    icon={
                         <PinIcon
-                            size={{ width: "20", height: "20" }}
-                            color={note.pinned ? accentColor : whiteColor}
+                            size={iconSize}
+                            color={note.pinned ? colors.accent : colors.ink}
                         />
-                    </Pressable>
-                    <Pressable
-                        onPress={() =>
-                            toastNotification(
-                                "error",
-                                "Under Development",
-                                "Note lock feature is still under development"
-                            )
-                        }
-                    >
-                        <LockIcon size={{ width: "20", height: "20" }} />
-                    </Pressable>
-                </View>
+                    }
+                    label={note.pinned ? "Unpin" : "Pin to top"}
+                    onPress={togglePin}
+                />
+                <ActionRow
+                    icon={<LockIcon size={iconSize} color={colors.ink} />}
+                    label="Lock note"
+                    onPress={() =>
+                        toastNotification(
+                            "info",
+                            "Coming soon",
+                            "Note lock is still under development"
+                        )
+                    }
+                />
+                <ActionRow
+                    danger
+                    icon={<TrashIcon size={iconSize} color={colors.accent} />}
+                    label="Move to Recycle bin"
+                    onPress={deleteNote}
+                />
             </View>
-        </RBSheet>
+        </AppSheet>
     );
 };
-
-const styles = StyleSheet.create({
-    ...globalSheetStyle,
-    contentDiv: {
-        padding: 15,
-        paddingLeft: 25,
-        paddingRight: 25,
-        actionContents: {
-            padding: 7,
-            paddingLeft: 20,
-            paddingRight: 20,
-            flexDirection: "row",
-            justifyContent: "space-between",
-        },
-    },
-});
 
 export default NoteActionSheet;

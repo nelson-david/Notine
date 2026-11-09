@@ -1,19 +1,9 @@
-import RBSheet from "react-native-raw-bottom-sheet";
-import { accentColor, globalSheetStyle, whiteColor } from "../../styles/const";
-import {
-    heightPercentageToDP as hp,
-    widthPercentageToDP as wp,
-} from "react-native-responsive-screen";
-import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
-import { TextInput } from "react-native-gesture-handler";
 import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
+import AppSheet from "../ui/AppSheet";
+import SheetInput from "../ui/SheetInput";
+import SheetActions from "../ui/SheetActions";
 import { Nav } from "../../utils/types";
 import { toastNotification } from "../../utils/toast";
 
@@ -30,106 +20,42 @@ const UnlockFolderSheet = ({
     const proceedToUnlock = () => {
         setPin("");
         if (pin === folder.pin) {
+            unlockSheetRef.current?.close();
             navigate("SingleFolder", { folder });
         } else {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             toastNotification(
                 "error",
                 "Pin error",
                 "The pin you entered is incorrect"
             );
         }
-        unlockSheetRef.current.close();
     };
 
     return (
-        <RBSheet
+        <AppSheet
             ref={unlockSheetRef}
-            customStyles={styles.modalStyle}
-            customModalProps={{
-                animationType: "slide",
-                statusBarTranslucent: true,
-            }}
-            useNativeDriver
-            openDuration={150}
-            closeDuration={150}
-            height={hp(30)}
-            draggable
+            title="Enter PIN"
+            description={`“${folder.name}” is locked`}
+            onDismiss={() => setPin("")}
         >
-            <Text style={styles.title}>Enter Pin</Text>
-            <View style={styles.contentDiv}>
-                <View>
-                    <TextInput
-                        placeholder="Pin"
-                        placeholderTextColor={accentColor}
-                        value={pin}
-                        onChangeText={(e) => setPin(e)}
-                        style={styles.contentDiv.input}
-                        maxLength={4}
-                    />
-                </View>
-                <View style={styles.contentDiv.buttonDiv}>
-                    <Pressable
-                        onPress={() => unlockSheetRef.current.close()}
-                        style={styles.contentDiv.buttonDiv.button}
-                    >
-                        <Text style={styles.contentDiv.buttonDiv.button.text}>
-                            Cancel
-                        </Text>
-                    </Pressable>
-                    <Pressable
-                        onPress={proceedToUnlock}
-                        style={styles.contentDiv.buttonDiv.button}
-                    >
-                        <Text style={styles.contentDiv.buttonDiv.button.text}>
-                            Unlock
-                        </Text>
-                    </Pressable>
-                </View>
-            </View>
-        </RBSheet>
+            {/* Older PINs were free text, so don't force a number pad here. */}
+            <SheetInput
+                pin
+                keyboardType="default"
+                placeholder="••••"
+                value={pin}
+                onChangeText={setPin}
+                onSubmitEditing={proceedToUnlock}
+            />
+            <SheetActions
+                onCancel={() => unlockSheetRef.current?.close()}
+                onConfirm={proceedToUnlock}
+                confirmLabel="Unlock"
+                disabled={pin.length === 0}
+            />
+        </AppSheet>
     );
 };
-
-const styles = StyleSheet.create({
-    ...globalSheetStyle,
-    contentDiv: {
-        padding: 15,
-        paddingLeft: 25,
-        paddingRight: 25,
-        input: {
-            borderWidth: 1.3,
-            borderColor: "rgba(255,255,255,0.5)",
-            borderRadius: 15,
-            height: 55,
-            color: "rgba(255,255,255,1)",
-            fontFamily: "SCPRegularFont",
-            fontSize: 17,
-            textAlign: "center",
-            letterSpacing: 15,
-        },
-        buttonDiv: {
-            flexDirection: "row",
-            justifyContent: "center",
-            gap: wp(20),
-            paddingTop: 30,
-            button: {
-                backgroundColor: "rgba(0,0,0,0.1)",
-                height: 40,
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-                paddingLeft: 25,
-                paddingRight: 25,
-                borderRadius: 50,
-                text: {
-                    color: whiteColor,
-                    fontSize: 14,
-                    fontFamily: "NothingFont",
-                    letterSpacing: 0.7,
-                },
-            },
-        },
-    },
-});
 
 export default UnlockFolderSheet;

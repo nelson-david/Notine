@@ -1,53 +1,45 @@
-import { globalScrollViewStyle, globalSidePadding } from "../../styles/const";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { myFoldersStyle } from "../../styles/app";
+import { useRef } from "react";
+import { ScrollView } from "react-native";
 import { useAtom } from "jotai";
-import { foldersAtom, notesAtom } from "../../utils/jotaiAtom";
-import { useEffect } from "react";
+import Screen from "../../components/ui/Screen";
+import Container from "../../components/ui/Container";
+import Grid from "../../components/ui/Grid";
 import NavigationHeaderBar from "../../components/header/NavigationHeader";
-import FolderCard from "../../components/card/FolderCard";
-import { SafeAreaView } from "react-native-safe-area-context";
+import FolderCard, { NewFolderCard } from "../../components/card/FolderCard";
+import CreateFolderSheet from "../../components/bottomsheet/CreateFolderSheet";
+import { foldersAtom, notesAtom } from "../../utils/jotaiAtom";
 
 const FoldersScreen = () => {
-    const [folders, _] = useAtom(foldersAtom);
-    const [notes, __] = useAtom(notesAtom);
-
-    useEffect(() => {
-        console.log("FOLDER PAGE: ", folders);
-    }, []);
+    const [folders] = useAtom<any[]>(foldersAtom as any);
+    const [notes] = useAtom<any[]>(notesAtom as any);
+    const folderSheetRef = useRef<any>();
+    const count = folders?.length ?? 0;
 
     return (
-        <SafeAreaView style={styles.foldersScreen}>
-            <NavigationHeaderBar title="My Folders" />
-            <ScrollView
-                style={{
-                    ...globalScrollViewStyle,
-                    width: "100%",
-                    height: "100%",
-                    paddingLeft: globalSidePadding,
-                    paddingRight: globalSidePadding,
-                }}
-            >
-                <View style={styles.foldersScreen.folderList}>
-                    {folders ? (
-                        folders.map((folder, index: number) => {
-                            return (
-                                <FolderCard
-                                    key={index}
-                                    folder={folder}
-                                    notes={notes}
-                                />
-                            );
-                        })
-                    ) : (
-                        <></>
-                    )}
-                </View>
+        <Screen>
+            <NavigationHeaderBar
+                title="Folders"
+                subtitle={`${count} ${count === 1 ? "folder" : "folders"}`}
+            />
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+                <Container className="pb-12 pt-4">
+                    <Grid
+                        data={folders ?? []}
+                        keyExtractor={(folder) => folder.folderID}
+                        renderItem={(folder) => (
+                            <FolderCard folder={folder} notes={notes} />
+                        )}
+                        footer={
+                            <NewFolderCard
+                                onPress={() => folderSheetRef.current?.open()}
+                            />
+                        }
+                    />
+                </Container>
             </ScrollView>
-        </SafeAreaView>
+            <CreateFolderSheet folderSheetRef={folderSheetRef} />
+        </Screen>
     );
 };
-
-const styles = StyleSheet.create(myFoldersStyle);
 
 export default FoldersScreen;

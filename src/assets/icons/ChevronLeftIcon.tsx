@@ -1,3 +1,4 @@
+import { useIconColor } from "../../theme/useIconColor";
 import Svg, { Path } from "react-native-svg";
 
 const ChevronLeftIcon = ({
@@ -7,6 +8,7 @@ const ChevronLeftIcon = ({
     color?: string;
     size?: { width: string; height: string };
 }) => {
+    const c = useIconColor(color);
     return (
         <>
             <Svg
@@ -17,7 +19,7 @@ const ChevronLeftIcon = ({
             >
                 <Path
                     d="M15 6L9 12L15 18"
-                    stroke={color ? color : "#ffffff"}
+                    stroke={c}
                     strokeWidth="1.1"
                     strokeLinecap="round"
                     strokeLinejoin="round"

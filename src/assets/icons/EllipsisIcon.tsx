@@ -1,3 +1,4 @@
+import { useIconColor } from "../../theme/useIconColor";
 import Svg, { Path } from "react-native-svg";
 
 const EllipsisIcon = ({
@@ -7,10 +8,11 @@ const EllipsisIcon = ({
     color?: string;
     size?: { width: string; height: string };
 }) => {
+    const c = useIconColor(color);
     return (
         <>
             <Svg
-                fill={color ? color : "#ffffff"}
+                fill={c}
                 width={size ? size.width : "30"}
                 height={size ? size.height : "30"}
                 viewBox="0 0 16 16"

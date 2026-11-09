@@ -1,31 +1,30 @@
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const fetchAndSetInfo = (
+// Loads saved folders and notes, then calls `runOnFinish` once BOTH are in
+// state (previously it fired before the data arrived, causing a flash of
+// empty screens on launch).
+const fetchAndSetInfo = async (
     setDevice: any,
     setFolders: any,
     setNotes: any,
     runOnFinish: any
 ) => {
     setDevice(Device);
-
-    AsyncStorage.getItem("myFolders").then((data) => {
-        if (data) {
-            setFolders(JSON.parse(data));
-        } else {
-            setFolders([]);
-        }
-    });
-
-    AsyncStorage.getItem("myNotes").then((data) => {
-        if (data) {
-            setNotes(JSON.parse(data));
-        } else {
-            setNotes([]);
-        }
-    });
-
-    runOnFinish();
+    try {
+        const [folders, notes] = await Promise.all([
+            AsyncStorage.getItem("myFolders"),
+            AsyncStorage.getItem("myNotes"),
+        ]);
+        setFolders(folders ? JSON.parse(folders) : []);
+        setNotes(notes ? JSON.parse(notes) : []);
+    } catch (e) {
+        console.log("Failed to load saved data: ", e);
+        setFolders([]);
+        setNotes([]);
+    } finally {
+        runOnFinish();
+    }
 };
 
 const createNewFolder = async (
@@ -135,63 +134,156 @@ const lockFolder = async (
     }
 };
 
-const createNewNote = async (
-    data: any,
-    setNotes: any,
-    onCompleteAction: any
-) => {
-    const myNotes = await AsyncStorage.getItem("myNotes");
-    if (!myNotes) {
-        const myNotes = [data];
-        AsyncStorage.setItem("myNotes", JSON.stringify(myNotes)).then(
-            async () => {
-                const fetchedNotes = await AsyncStorage.getItem("myNotes");
-                setNotes(JSON.parse(fetchedNotes));
-                onCompleteAction();
-            }
-        );
-    } else {
-        const myDummyNotes: any = JSON.parse(myNotes);
-        myDummyNotes.unshift(data);
-        AsyncStorage.setItem("myNotes", JSON.stringify(myDummyNotes)).then(
-            async () => {
-                const fetchedNotes = await AsyncStorage.getItem("myNotes");
-                setNotes(JSON.parse(fetchedNotes));
-                onCompleteAction();
-            }
-        );
-    }
+const createNewNote = (data: any, setNotes: any, onCompleteAction: any) =>
+    runMutation((notes) => [data, ...notes], setNotes, onCompleteAction);
+
+/*
+ * All note mutations go through `mutateNotes` so that:
+ *  - AsyncStorage ("myNotes") stays the single source of truth,
+ *  - the jotai atom is updated with exactly what was persisted,
+ *  - read-modify-write cycles are serialized (rapid taps can't clobber
+ *    each other's writes).
+ */
+let notesWriteQueue: Promise<any> = Promise.resolve();
+
+const mutateNotes = (
+    transform: (notes: any[]) => any[],
+    setNotes: any
+): Promise<any[]> => {
+    const run = async () => {
+        const stored = await AsyncStorage.getItem("myNotes");
+        const current: any[] = stored ? JSON.parse(stored) : [];
+        const next = transform(current);
+        await AsyncStorage.setItem("myNotes", JSON.stringify(next));
+        setNotes(next);
+        return next;
+    };
+    const result = notesWriteQueue.then(run, run);
+    notesWriteQueue = result.catch(() => {});
+    return result;
 };
 
-const updateNote = async (data: any, setNotes: any, onCompleteAction: any) => {
-    console.log("DNTT: ", data);
-    const myNotes = await AsyncStorage.getItem("myNotes");
-    let noteData = JSON.parse(myNotes).find(
-        (note: any) => note.noteID === data.noteID
-    );
-    if (noteData) {
-        const modifiedNotes = JSON.parse(myNotes).map((note: any) => {
-            if (note.noteID === data.noteID) {
-                return {
-                    ...note,
-                    content: data.content,
-                    title: data.title,
-                    pinned: data.pinned,
-                    favourite: data.favourite,
-                    recycleBin: data.recycleBin,
-                };
-            }
-            return note;
+const runMutation = (
+    transform: (notes: any[]) => any[],
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    mutateNotes(transform, setNotes)
+        .then(() => onCompleteAction && onCompleteAction())
+        .catch((e) => {
+            console.log("Notes storage error: ", e);
+            onError && onError(e);
         });
-        AsyncStorage.setItem("myNotes", JSON.stringify(modifiedNotes)).then(
-            async () => {
-                const fetchedNotes = await AsyncStorage.getItem("myNotes");
-                setNotes(JSON.parse(fetchedNotes));
-                onCompleteAction();
-            }
-        );
-    }
+
+// Merges only the fields provided in `data` into the matching note.
+const updateNote = (data: any, setNotes: any, onCompleteAction: any) => {
+    const { noteID, ...fields } = data;
+    return runMutation(
+        (notes) =>
+            notes.map((note) =>
+                note.noteID === noteID ? { ...note, ...fields } : note
+            ),
+        setNotes,
+        onCompleteAction
+    );
 };
+
+const moveNoteToRecycleBin = (
+    noteID: string,
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    runMutation(
+        (notes) =>
+            notes.map((note) =>
+                note.noteID === noteID
+                    ? { ...note, recycleBin: true, deletedAt: Date.now() }
+                    : note
+            ),
+        setNotes,
+        onCompleteAction,
+        onError
+    );
+
+const moveFolderNotesToRecycleBin = (
+    folderID: string,
+    setNotes: any,
+    onCompleteAction?: any
+) => {
+    const deletedAt = Date.now();
+    return runMutation(
+        (notes) =>
+            notes.map((note) =>
+                note.folderID === folderID && !note.recycleBin
+                    ? { ...note, recycleBin: true, deletedAt }
+                    : note
+            ),
+        setNotes,
+        onCompleteAction
+    );
+};
+
+const restoreNote = (
+    noteID: string,
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    runMutation(
+        (notes) =>
+            notes.map((note) => {
+                if (note.noteID !== noteID) return note;
+                const { deletedAt, ...rest } = note;
+                return { ...rest, recycleBin: false };
+            }),
+        setNotes,
+        onCompleteAction,
+        onError
+    );
+
+const restoreAllNotes = (
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    runMutation(
+        (notes) =>
+            notes.map((note) => {
+                if (!note.recycleBin) return note;
+                const { deletedAt, ...rest } = note;
+                return { ...rest, recycleBin: false };
+            }),
+        setNotes,
+        onCompleteAction,
+        onError
+    );
+
+const permanentlyDeleteNote = (
+    noteID: string,
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    runMutation(
+        (notes) => notes.filter((note) => note.noteID !== noteID),
+        setNotes,
+        onCompleteAction,
+        onError
+    );
+
+const emptyRecycleBin = (
+    setNotes: any,
+    onCompleteAction?: any,
+    onError?: any
+) =>
+    runMutation(
+        (notes) => notes.filter((note) => !note.recycleBin),
+        setNotes,
+        onCompleteAction,
+        onError
+    );
 
 export {
     fetchAndSetInfo,
@@ -201,4 +293,10 @@ export {
     lockFolder,
     createNewNote,
     updateNote,
+    moveNoteToRecycleBin,
+    moveFolderNotesToRecycleBin,
+    restoreNote,
+    restoreAllNotes,
+    permanentlyDeleteNote,
+    emptyRecycleBin,
 };

@@ -1,88 +1,67 @@
-import { Text, Pressable, View, StyleSheet } from "react-native";
-import {
-    heightPercentageToDP as hp,
-    widthPercentageToDP as wp,
-} from "react-native-responsive-screen";
+import { ReactNode } from "react";
+import { Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import IconButton from "../ui/IconButton";
 import ChevronLeftIcon from "../../assets/icons/ChevronLeftIcon";
 import { Nav } from "../../utils/types";
-import { useNavigation } from "@react-navigation/native";
-import CancelIcon from "../../assets/icons/CancelIcon";
 
+/**
+ * Back button · centered title (+ subtitle) · optional right element.
+ * Both sides are the same width so the title is always truly centered.
+ */
 const NavigationHeaderBar = ({
     title,
-    useCancel,
+    subtitle,
     backAction,
+    onBack,
+    right,
 }: {
     title?: string;
-    useCancel?: boolean;
+    subtitle?: string;
+    /** Route name to navigate to instead of going back. */
     backAction?: string;
+    /** Custom handler for the back button (takes precedence). */
+    onBack?: () => void;
+    right?: ReactNode;
 }) => {
     const { navigate, goBack } = useNavigation<Nav>();
 
-    const onBackAction = () => {
-        if (backAction) {
-            navigate(backAction);
-        } else {
-            goBack();
-        }
+    const handleBack = () => {
+        if (onBack) onBack();
+        else if (backAction) navigate(backAction);
+        else goBack();
     };
 
     return (
-        <View style={styles.navigationHeaderBar}>
-            <Pressable
-                style={styles.navigationHeaderBar.arrowButton}
-                onPress={onBackAction}
-            >
-                {useCancel ? (
-                    <CancelIcon pressFunction={onBackAction} />
-                ) : (
-                    <ChevronLeftIcon size={{ width: "40", height: "40" }} />
-                )}
-            </Pressable>
-            <Text style={styles.navigationHeaderBar.titleText}>
-                {title ? title : "Navigation"}
-            </Text>
-            <Pressable
-                style={{
-                    ...styles.navigationHeaderBar.arrowButton,
-                    opacity: 0,
-                }}
-            >
-                <ChevronLeftIcon size={{ width: "33", height: "33" }} />
-            </Pressable>
+        <View className="w-full max-w-[960px] flex-row items-center self-center px-5 pb-2 pt-2">
+            <View className="w-12 items-start">
+                <IconButton label="Go back" onPress={handleBack}>
+                    <ChevronLeftIcon size={{ width: "24", height: "24" }} />
+                </IconButton>
+            </View>
+
+            <View className="flex-1 items-center">
+                {title ? (
+                    <Text
+                        numberOfLines={1}
+                        className="text-[17px] font-semibold text-ink"
+                    >
+                        {title}
+                    </Text>
+                ) : null}
+                {subtitle ? (
+                    <Text
+                        numberOfLines={1}
+                        className="mt-0.5 text-[12px] text-ink-muted"
+                    >
+                        {subtitle}
+                    </Text>
+                ) : null}
+            </View>
+
+            <View className="w-12 items-end">{right}</View>
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    navigationHeaderBar: {
-        width: "100%",
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingTop: hp(1.5),
-        paddingBottom: hp(1.5),
-        paddingLeft: 8,
-        paddingRight: 8,
-        arrowButton: {
-            width: wp(12),
-            height: hp(5.5),
-            paddingRight: wp(0.7),
-            backgroundColor: "rgba(0,0,0,0.0)",
-            flexDirection: "row",
-            justifyContent: "center",
-            alignItems: "center",
-            borderRadius: 15,
-            paddingTop: 3,
-        },
-        titleText: {
-            color: "rgba(255,255,255,0.9)",
-            fontFamily: "NothingFont",
-            fontSize: 20,
-            letterSpacing: 0.3,
-            textAlign: "center",
-        },
-    },
-} as any);
 
 export default NavigationHeaderBar;

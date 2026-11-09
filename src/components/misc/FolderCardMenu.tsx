@@ -1,132 +1,111 @@
-import { StyleSheet, Text, View } from "react-native";
-import {
-    Menu,
-    MenuOption,
-    MenuOptions,
-    MenuTrigger,
-} from "react-native-popup-menu";
-import { appColor, cardColor, whiteColor } from "../../styles/const";
+import { useRef, useState } from "react";
+import { View } from "react-native";
+import { useAtom } from "jotai";
 import EllipsisIcon from "../../assets/icons/EllipsisIcon";
 import TrashIcon from "../../assets/icons/TrashIcon";
-import StarIcon from "../../assets/icons/StarIcon";
 import LockIcon from "../../assets/icons/LockIcon";
-import ShareIcon from "../../assets/icons/ShareIcon";
-import { widthPercentageToDP as wp } from "react-native-responsive-screen";
 import EditIcon from "../../assets/icons/EditIcon";
+import AppSheet from "../ui/AppSheet";
+import ActionRow from "../ui/ActionRow";
+import ScalePressable from "../ui/ScalePressable";
 import ConfirmDeleteSheet from "../bottomsheet/ConfirmDeleteSheet";
-import { useRef, useState } from "react";
-import { deleteFolder } from "../../helpers/dbFunctions";
-import { useAtom } from "jotai";
-import { foldersAtom } from "../../utils/jotaiAtom";
 import EditFolderSheet from "../bottomsheet/EditFolderSheet";
 import LockFolderSheet from "../bottomsheet/LockFolderSheet";
+import {
+    deleteFolder,
+    moveFolderNotesToRecycleBin,
+} from "../../helpers/dbFunctions";
+import { foldersAtom, notesAtom } from "../../utils/jotaiAtom";
+import { toastNotification } from "../../utils/toast";
+import { useTheme } from "../../theme/useTheme";
+
+const iconSize = { width: "20", height: "20" };
 
 const FolderCardMenu = ({ folder }: { folder: any }) => {
-    const [_, setFolders] = useAtom(foldersAtom);
+    const { colors } = useTheme();
+    const [, setFolders] = useAtom(foldersAtom);
+    const [, setNotes] = useAtom(notesAtom);
+    const menuSheetRef = useRef<any>();
     const deleteSheetRef = useRef<any>();
     const editSheetRef = useRef<any>();
     const lockSheetRef = useRef<any>();
     const [deletingFolder, setDeletingFolder] = useState(false);
 
+    // Close the menu, then open the next sheet once it has slid away.
+    const openFromMenu = (ref: any) => {
+        menuSheetRef.current?.close();
+        setTimeout(() => ref.current?.open(), 250);
+    };
+
     const deleteAction = () => {
         setDeletingFolder(true);
-        deleteFolder(folder.folderID, setFolders, () => {
-            setDeletingFolder(false);
-            deleteSheetRef.current.close();
+        // Move the folder's notes to the Recycle bin first so they can be
+        // restored, then remove the folder itself.
+        moveFolderNotesToRecycleBin(folder.folderID, setNotes, () => {
+            deleteFolder(folder.folderID, setFolders, () => {
+                setDeletingFolder(false);
+                deleteSheetRef.current?.close();
+                toastNotification(
+                    "success",
+                    "Folder deleted",
+                    "Its notes were moved to the Recycle bin"
+                );
+            });
         });
     };
 
     return (
         <>
-            <Menu style={styles.menu}>
-                <MenuTrigger
-                    children={
-                        <EllipsisIcon size={{ width: "23", height: "23" }} />
-                    }
+            <ScalePressable
+                haptic
+                pressScale={0.88}
+                onPress={() => menuSheetRef.current?.open()}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Options for ${folder.name}`}
+                className="h-8 w-8 items-center justify-center rounded-full bg-surface-2"
+            >
+                <EllipsisIcon
+                    size={{ width: "16", height: "16" }}
+                    color={colors.inkMuted}
                 />
-                <MenuOptions
-                    optionsContainerStyle={{
-                        backgroundColor: cardColor,
-                        borderRadius: 25,
-                        padding: 12,
-                        paddingTop: 13,
-                        width: 165,
-                        borderWidth: 1.5,
-                        borderColor: "rgba(255,255,255,0.05)",
-                    }}
-                >
-                    <View style={styles.flexView}>
-                        <MenuOption
-                            onSelect={() => lockSheetRef.current.open()}
-                            style={styles.flexView.menuOption}
-                        >
-                            <LockIcon
-                                color="rgba(255,255,255,0.8)"
-                                size={{ height: "20", width: "20" }}
-                            />
-                        </MenuOption>
-                        <MenuOption
-                            onSelect={() => editSheetRef.current.open()}
-                            style={styles.flexView.menuOption}
-                        >
-                            <EditIcon
-                                color="rgba(255,255,255,0.8)"
-                                size={{ height: "20", width: "20" }}
-                            />
-                        </MenuOption>
-                        <MenuOption
-                            onSelect={() => deleteSheetRef.current.open()}
-                            style={styles.flexView.menuOption}
-                        >
-                            <TrashIcon
-                                color="rgba(255,255,255,0.8)"
-                                size={{ height: "20", width: "20" }}
-                            />
-                        </MenuOption>
-                    </View>
-                </MenuOptions>
-            </Menu>
+            </ScalePressable>
+
+            <AppSheet ref={menuSheetRef} title={folder.name}>
+                <View className="gap-2">
+                    <ActionRow
+                        icon={<EditIcon size={iconSize} color={colors.ink} />}
+                        label="Edit folder"
+                        onPress={() => openFromMenu(editSheetRef)}
+                    />
+                    {!folder.locked ? (
+                        <ActionRow
+                            icon={<LockIcon size={iconSize} color={colors.ink} />}
+                            label="Lock with PIN"
+                            onPress={() => openFromMenu(lockSheetRef)}
+                        />
+                    ) : null}
+                    <ActionRow
+                        danger
+                        icon={<TrashIcon size={iconSize} color={colors.accent} />}
+                        label="Delete folder"
+                        onPress={() => openFromMenu(deleteSheetRef)}
+                    />
+                </View>
+            </AppSheet>
+
             <EditFolderSheet editSheetRef={editSheetRef} folder={folder} />
             <LockFolderSheet lockSheetRef={lockSheetRef} folder={folder} />
             <ConfirmDeleteSheet
                 deleteSheetRef={deleteSheetRef}
                 actionToTake={deleteAction}
                 processing={deletingFolder}
-                question=" Move 1 folder and all the items in it to the Recycle bin?"
+                title="Delete folder?"
+                question={`"${folder.name}" will be removed and its notes moved to the Recycle bin.`}
+                confirmText="Delete"
             />
         </>
     );
 };
-
-const styles = StyleSheet.create({
-    menu: {},
-    menuOption: {
-        padding: 0,
-        paddingTop: 15,
-        paddingBottom: 15,
-        borderRadius: 20,
-        text: {
-            fontFamily: "NothingFont",
-            color: whiteColor,
-            letterSpacing: 0.7,
-            paddingTop: 5,
-            paddingBottom: 5,
-            fontSize: 14,
-        },
-    },
-    flexView: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginLeft: 5,
-        marginRight: 5,
-        padding: 0,
-        paddingTop: 5,
-        paddingBottom: 5,
-        menuOption: {
-            padding: wp(2.5),
-        },
-    },
-} as any);
 
 export default FolderCardMenu;

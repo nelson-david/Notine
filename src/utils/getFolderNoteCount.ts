@@ -1,11 +1,6 @@
-const getFolderNoteCount = (folderID: string, notes: any[]) => {
-    const dummyNotes: any[] = [];
-    notes.map((note) => {
-        if (note.folderID === folderID) {
-            dummyNotes.unshift(note);
-        }
-    });
-    return dummyNotes.length;
-};
+// Counts the live (not in Recycle bin) notes belonging to a folder.
+const getFolderNoteCount = (folderID: string, notes: any[]) =>
+    notes.filter((note) => note.folderID === folderID && !note.recycleBin)
+        .length;
 
 export { getFolderNoteCount };
